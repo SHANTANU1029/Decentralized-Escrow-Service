@@ -200,6 +200,32 @@ contract Project {
     function getTotalEscrows() external view returns (uint256) {
         return escrowCounter;
     }
+    /**
+     * @dev Allows buyer to cancel the escrow before delivery confirmation and get refund
+     * @param _escrowId The ID of the escrow
+     */
+    function cancelEscrowByBuyer(uint256 _escrowId)
+        external
+        validEscrow(_escrowId)
+        onlyBuyer(_escrowId)
+    {
+        Escrow storage escrow = escrows[_escrowId];
+        require(escrow.state == EscrowState.AWAITING_DELIVERY, "Cannot cancel at this stage");
+        require(block.timestamp <= escrow.createdAt + 1 hours, "Cancellation window expired");
+
+        escrow.state = EscrowState.REFUNDED;
+
+        uint256 amount = escrow.amount;
+        escrow.amount = 0;
+
+        (bool success, ) = escrow.buyer.call{value: amount}("");
+        require(success, "Refund transfer failed");
+
+        emit EscrowRefunded(_escrowId, escrow.buyer, amount);
+    }
+
+
+
     
     // Emergency function to handle stuck funds (simplified dispute resolution)
     function resolveDispute(uint256 _escrowId, bool _favorBuyer) 
@@ -230,3 +256,4 @@ contract Project {
         }
     }
 }
+ “Added one function suggested by ChatGPT”
